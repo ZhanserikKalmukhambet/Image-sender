@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sync"
 )
 
 type UnsplashPhoto struct {
@@ -50,19 +49,16 @@ func main() {
 		panic(err)
 	}
 
-	bot.Debug = true // showing all actions, updates, etc.
-
-	log.Printf("Authorized on account %s", bot.Self.UserName) // if connection is correct, then it will print username
+	bot.Debug = true
+	log.Printf("Authorized on account %s", bot.Self.UserName)
 
 	updateConfig := tgbotapi.NewUpdate(0) // update bot configuration each time
 	updateConfig.Timeout = 60
 
 	updates := bot.GetUpdatesChan(updateConfig) // getting updates which is stored in channels
 
+	countCh := make(chan int)
 	count := 0
-
-	var wg sync.WaitGroup
-	wg.Add(1)
 
 	go func() {
 		for update := range updates {
@@ -74,8 +70,7 @@ func main() {
 
 			// check if user sends "/image" or "image" command
 			if update.Message.IsCommand() && update.Message.Command() == "image" || update.Message.Text == "image" {
-				count++
-				log.Printf("Count: %v", count)
+				countCh <- 1
 
 				photo, err := GetRandomPhoto()
 				if err != nil {
@@ -87,9 +82,16 @@ func main() {
 				bot.Send(file)
 			}
 		}
-
-		wg.Done()
 	}()
 
-	wg.Wait()
+	go func() {
+		for {
+			<-countCh
+			count++
+
+			log.Printf("Count : %v", count)
+		}
+	}()
+
+	select {}
 }
